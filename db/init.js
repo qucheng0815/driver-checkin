@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'data.json');
+// Glitch 持久化目录是 .data/，其他平台用项目内 db/
+const DATA_DIR = fs.existsSync('/app/.data') ? '/app/.data' : path.join(__dirname);
+const DB_PATH = path.join(DATA_DIR, 'data.json');
 
 // 默认数据结构
 const DEFAULT_DATA = {
