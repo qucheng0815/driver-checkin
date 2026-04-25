@@ -1,8 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const { saveDB, getBeijingTime } = require('../db/init');
 
 // 管理员密码
 const ADMIN_PASSWORD = 'admin123';
+
+// sql.js 查询辅助：将结果转为对象数组
+function queryAll(db, sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) {
+    rows.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return rows;
+}
+
+function queryOne(db, sql, params = []) {
+  const rows = queryAll(db, sql, params);
+  return rows.length > 0 ? rows[0] : null;
+}
 
 module.exports = function (db) {
 
@@ -20,11 +38,15 @@ module.exports = function (db) {
     }
 
     try {
-      const stmt = db.prepare(
-        'INSERT INTO records (name, plate, phone, company) VALUES (?, ?, ?, ?)'
+      const now = getBeijingTime();
+      db.run(
+        'INSERT INTO records (name, plate, phone, company, checkin_time) VALUES (?, ?, ?, ?, ?)',
+        [name.trim(), plate.trim().toUpperCase(), phone.trim(), company, now]
       );
-      const result = stmt.run(name.trim(), plate.trim().toUpperCase(), phone.trim(), company);
-      res.json({ ok: true, msg: '签到成功', id: result.lastInsertRowid });
+      saveDB();
+
+      const last = queryOne(db, 'SELECT last_insert_rowid() as id');
+      res.json({ ok: true, msg: '签到成功', id: last ? last.id : null });
     } catch (err) {
       console.error('签到失败:', err);
       res.status(500).json({ ok: false, msg: '签到失败，请重试' });
@@ -34,9 +56,9 @@ module.exports = function (db) {
   // ========== 获取待签退车辆列表（已签到未签退） ==========
   router.get('/pending', (req, res) => {
     try {
-      const rows = db.prepare(
+      const rows = queryAll(db,
         'SELECT id, name, plate, phone, company, checkin_time FROM records WHERE checkout_time IS NULL ORDER BY checkin_time DESC'
-      ).all();
+      );
       res.json({ ok: true, data: rows });
     } catch (err) {
       console.error('查询待签退失败:', err);
@@ -53,12 +75,14 @@ module.exports = function (db) {
     }
 
     try {
-      const record = db.prepare('SELECT * FROM records WHERE id = ? AND checkout_time IS NULL').get(id);
+      const record = queryOne(db, 'SELECT * FROM records WHERE id = ? AND checkout_time IS NULL', [id]);
       if (!record) {
         return res.status(404).json({ ok: false, msg: '未找到该签到记录或已签退' });
       }
 
-      db.prepare("UPDATE records SET checkout_time = datetime('now', '+8 hours') WHERE id = ?").run(id);
+      const now = getBeijingTime();
+      db.run('UPDATE records SET checkout_time = ? WHERE id = ?', [now, id]);
+      saveDB();
       res.json({ ok: true, msg: '签退成功' });
     } catch (err) {
       console.error('签退失败:', err);
@@ -79,9 +103,9 @@ module.exports = function (db) {
   // ========== 管理后台 - 当前在场车辆 ==========
   router.get('/admin/current', (req, res) => {
     try {
-      const rows = db.prepare(
+      const rows = queryAll(db,
         'SELECT id, name, plate, phone, company, checkin_time FROM records WHERE checkout_time IS NULL ORDER BY checkin_time DESC'
-      ).all();
+      );
       res.json({ ok: true, data: rows });
     } catch (err) {
       console.error('查询在场车辆失败:', err);
@@ -103,15 +127,18 @@ module.exports = function (db) {
         params.push(date);
       }
 
-      const countRow = db.prepare(`SELECT COUNT(*) as total FROM records WHERE ${where}`).get(...params);
-      const rows = db.prepare(
-        `SELECT * FROM records WHERE ${where} ORDER BY checkin_time DESC LIMIT ? OFFSET ?`
-      ).all(...params, parseInt(size), offset);
+      const countRow = queryOne(db, `SELECT COUNT(*) as total FROM records WHERE ${where}`, params);
+      const total = countRow ? countRow.total : 0;
+
+      const rows = queryAll(db,
+        `SELECT * FROM records WHERE ${where} ORDER BY checkin_time DESC LIMIT ? OFFSET ?`,
+        [...params, parseInt(size), offset]
+      );
 
       res.json({
         ok: true,
         data: rows,
-        total: countRow.total,
+        total: total,
         page: parseInt(page),
         size: parseInt(size)
       });

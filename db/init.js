@@ -1,35 +1,54 @@
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
+const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, 'checkin.db');
 
-function initDB() {
-  const db = new Database(DB_PATH);
+let db = null;
 
-  // 开启 WAL 模式，提升并发读写性能
-  db.pragma('journal_mode = WAL');
+// 自动持久化：每次写操作后保存到文件
+function saveDB() {
+  if (db) {
+    const data = db.export();
+    fs.writeFileSync(DB_PATH, Buffer.from(data));
+  }
+}
 
-  // 签到记录表
-  db.exec(`
+async function initDB() {
+  const SQL = await initSqlJs();
+
+  // 如果已有数据库文件，加载它
+  if (fs.existsSync(DB_PATH)) {
+    const fileBuffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(fileBuffer);
+  } else {
+    db = new SQL.Database();
+  }
+
+  // 创建表
+  db.run(`
     CREATE TABLE IF NOT EXISTS records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       plate TEXT NOT NULL,
       phone TEXT NOT NULL,
       company TEXT NOT NULL,
-      checkin_time DATETIME NOT NULL DEFAULT (datetime('now', '+8 hours')),
-      checkout_time DATETIME DEFAULT NULL
+      checkin_time TEXT NOT NULL,
+      checkout_time TEXT DEFAULT NULL
     )
   `);
 
-  // 为常用查询建索引
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_plate ON records(plate);
-    CREATE INDEX IF NOT EXISTS idx_checkin_time ON records(checkin_time);
-    CREATE INDEX IF NOT EXISTS idx_checkout_time ON records(checkout_time);
-  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_plate ON records(plate)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_checkin_time ON records(checkin_time)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_checkout_time ON records(checkout_time)`);
 
+  saveDB();
   return db;
 }
 
-module.exports = { initDB, DB_PATH };
+// 获取北京时间字符串
+function getBeijingTime() {
+  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+}
+
+module.exports = { initDB, saveDB, getBeijingTime, DB_PATH };
