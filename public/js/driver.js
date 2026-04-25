@@ -10,116 +10,123 @@ function showPage(page) {
 }
 
 // ===== Toast 提示 =====
-function showToast(msg, duration = 2000) {
-  const toast = document.getElementById('toast');
+function showToast(msg, duration) {
+  duration = duration || 2000;
+  var toast = document.getElementById('toast');
   toast.textContent = msg;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), duration);
+  setTimeout(function() { toast.classList.remove('show'); }, duration);
 }
 
 // ===== 签到 =====
-async function handleCheckin(e) {
+function handleCheckin(e) {
   e.preventDefault();
-  const btn = document.getElementById('btnCheckin');
+  var btn = document.getElementById('btnCheckin');
   btn.disabled = true;
   btn.textContent = '提交中...';
 
-  const data = {
+  var data = {
     name: document.getElementById('c_name').value.trim(),
     plate: document.getElementById('c_plate').value.trim(),
     phone: document.getElementById('c_phone').value.trim(),
     company: document.getElementById('c_company').value
   };
 
-  try {
-    const res = await fetch('/api/checkin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    const result = await res.json();
-
+  fetch('/api/checkin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(result) {
     if (result.ok) {
       showToast('✅ 签到成功！');
       document.getElementById('checkinForm').reset();
-      setTimeout(() => showPage('home'), 1500);
+      setTimeout(function() { showPage('home'); }, 1500);
     } else {
       showToast('❌ ' + result.msg);
     }
-  } catch (err) {
+  })
+  .catch(function() {
     showToast('❌ 网络错误，请重试');
-  } finally {
+  })
+  .finally(function() {
     btn.disabled = false;
     btn.textContent = '确认签到';
-  }
+  });
+
+  return false;
 }
 
 // ===== 加载待签退列表 =====
-let selectedId = null;
+var selectedId = null;
 
-async function loadPendingList() {
+function loadPendingList() {
   selectedId = null;
   document.getElementById('btnCheckout').style.display = 'none';
 
-  try {
-    const res = await fetch('/api/pending');
-    const result = await res.json();
-    const list = document.getElementById('checkoutList');
+  fetch('/api/pending')
+  .then(function(res) { return res.json(); })
+  .then(function(result) {
+    var list = document.getElementById('checkoutList');
 
     if (!result.ok || result.data.length === 0) {
       list.innerHTML = '<li class="empty-tip">暂无待签退车辆</li>';
       return;
     }
 
-    list.innerHTML = result.data.map(item => `
-      <li class="checkout-item" data-id="${item.id}" onclick="selectItem(this, ${item.id})">
-        <div>
-          <div class="plate">${item.plate}</div>
-          <div class="info">${item.name} · ${item.company} · ${item.checkin_time}</div>
-        </div>
-      </li>
-    `).join('');
-  } catch (err) {
+    list.innerHTML = result.data.map(function(item) {
+      return '<li class="checkout-item" data-id="' + item.id + '" onclick="selectItem(this, ' + item.id + ')">' +
+        '<div>' +
+          '<div class="plate">' + item.plate + '</div>' +
+          '<div class="info">' + item.name + ' · ' + item.company + ' · ' + item.checkin_time + '</div>' +
+        '</div>' +
+      '</li>';
+    }).join('');
+  })
+  .catch(function() {
     showToast('❌ 加载失败，请重试');
-  }
+  });
 }
 
 function selectItem(el, id) {
-  document.querySelectorAll('.checkout-item').forEach(i => i.classList.remove('selected'));
+  var items = document.querySelectorAll('.checkout-item');
+  for (var i = 0; i < items.length; i++) { items[i].classList.remove('selected'); }
   el.classList.add('selected');
   selectedId = id;
   document.getElementById('btnCheckout').style.display = '';
 }
 
 // ===== 签退 =====
-async function handleCheckout() {
+function handleCheckout() {
   if (!selectedId) {
     showToast('请先选择车辆');
     return;
   }
 
-  const btn = document.getElementById('btnCheckout');
+  var btn = document.getElementById('btnCheckout');
   btn.disabled = true;
   btn.textContent = '提交中...';
 
-  try {
-    const res = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selectedId })
-    });
-    const result = await res.json();
-
+  fetch('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: selectedId })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(result) {
     if (result.ok) {
       showToast('✅ 签退成功！');
-      setTimeout(() => showPage('home'), 1500);
+      setTimeout(function() { showPage('home'); }, 1500);
     } else {
       showToast('❌ ' + result.msg);
     }
-  } catch (err) {
+  })
+  .catch(function() {
     showToast('❌ 网络错误，请重试');
-  } finally {
+  })
+  .finally(function() {
     btn.disabled = false;
     btn.textContent = '确认签退';
-  }
+  });
 }

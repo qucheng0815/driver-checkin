@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/api/checkin", "destination": "/api/checkin" },
+    { "source": "/api/pending", "destination": "/api/pending" },
+    { "source": "/api/checkout", "destination": "/api/checkout" },
+    { "source": "/api/qrcode", "destination": "/api/qrcode" },
+    { "source": "/api/qrpage", "destination": "/api/qrpage" },
+    { "source": "/api/admin/login", "destination": "/api/admin/login" },
+    { "source": "/api/admin/current", "destination": "/api/admin/current" },
+    { "source": "/api/admin/history", "destination": "/api/admin/history" },
+    { "source": "/admin", "destination": "/admin.html" }
+  ]
+}

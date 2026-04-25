@@ -1,34 +1,7 @@
-const express = require('express');
-const QRCode = require('qrcode');
-const router = express.Router();
+module.exports = async function handler(req, res) {
+  const baseUrl = `https://${req.headers.host}`;
 
-// 生成入口二维码图片
-router.get('/qrcode', async (req, res) => {
-  // 优先使用请求头中的 Host，或通过 query 参数传入
-  const baseUrl = req.query.url || `${req.protocol}://${req.get('host')}`;
-
-  try {
-    const qrBuffer = await QRCode.toBuffer(baseUrl, {
-      width: 400,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#ffffff'
-      }
-    });
-
-    res.set('Content-Type', 'image/png');
-    res.send(qrBuffer);
-  } catch (err) {
-    console.error('二维码生成失败:', err);
-    res.status(500).json({ ok: false, msg: '二维码生成失败' });
-  }
-});
-
-// 返回二维码展示页
-router.get('/qrpage', async (req, res) => {
-  const baseUrl = req.query.url || `${req.protocol}://${req.get('host')}`;
-
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -52,6 +25,4 @@ router.get('/qrpage', async (req, res) => {
     </body>
     </html>
   `);
-});
-
-module.exports = router;
+};
