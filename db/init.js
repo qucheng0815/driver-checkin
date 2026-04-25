@@ -1,54 +1,39 @@
-const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'checkin.db');
+const DB_PATH = path.join(__dirname, 'data.json');
 
-let db = null;
+// 默认数据结构
+const DEFAULT_DATA = {
+  records: [],
+  nextId: 1
+};
 
-// 自动持久化：每次写操作后保存到文件
-function saveDB() {
-  if (db) {
-    const data = db.export();
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
+function loadData() {
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const raw = fs.readFileSync(DB_PATH, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('数据文件读取失败，使用默认数据:', err.message);
   }
+  return JSON.parse(JSON.stringify(DEFAULT_DATA));
 }
 
-async function initDB() {
-  const SQL = await initSqlJs();
-
-  // 如果已有数据库文件，加载它
-  if (fs.existsSync(DB_PATH)) {
-    const fileBuffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
-  }
-
-  // 创建表
-  db.run(`
-    CREATE TABLE IF NOT EXISTS records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      plate TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      company TEXT NOT NULL,
-      checkin_time TEXT NOT NULL,
-      checkout_time TEXT DEFAULT NULL
-    )
-  `);
-
-  db.run(`CREATE INDEX IF NOT EXISTS idx_plate ON records(plate)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_checkin_time ON records(checkin_time)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_checkout_time ON records(checkout_time)`);
-
-  saveDB();
-  return db;
+function saveData(data) {
+  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
 }
 
 // 获取北京时间字符串
 function getBeijingTime() {
-  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
+  return d.toISOString().replace('T', ' ').substring(0, 19);
 }
 
-module.exports = { initDB, saveDB, getBeijingTime, DB_PATH };
+// 获取北京时间日期部分
+function getBeijingDate(timeStr) {
+  return timeStr ? timeStr.substring(0, 10) : '';
+}
+
+module.exports = { loadData, saveData, getBeijingTime, getBeijingDate, DB_PATH };

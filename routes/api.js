@@ -1,28 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { saveDB, getBeijingTime } = require('../db/init');
+const { loadData, saveData, getBeijingTime, getBeijingDate } = require('../db/init');
 
 // 管理员密码
 const ADMIN_PASSWORD = 'admin123';
 
-// sql.js 查询辅助：将结果转为对象数组
-function queryAll(db, sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
-}
-
-function queryOne(db, sql, params = []) {
-  const rows = queryAll(db, sql, params);
-  return rows.length > 0 ? rows[0] : null;
-}
-
-module.exports = function (db) {
+module.exports = function () {
 
   // ========== 签到 ==========
   router.post('/checkin', (req, res) => {
@@ -38,15 +21,19 @@ module.exports = function (db) {
     }
 
     try {
-      const now = getBeijingTime();
-      db.run(
-        'INSERT INTO records (name, plate, phone, company, checkin_time) VALUES (?, ?, ?, ?, ?)',
-        [name.trim(), plate.trim().toUpperCase(), phone.trim(), company, now]
-      );
-      saveDB();
-
-      const last = queryOne(db, 'SELECT last_insert_rowid() as id');
-      res.json({ ok: true, msg: '签到成功', id: last ? last.id : null });
+      const data = loadData();
+      const record = {
+        id: data.nextId++,
+        name: name.trim(),
+        plate: plate.trim().toUpperCase(),
+        phone: phone.trim(),
+        company,
+        checkin_time: getBeijingTime(),
+        checkout_time: null
+      };
+      data.records.push(record);
+      saveData(data);
+      res.json({ ok: true, msg: '签到成功', id: record.id });
     } catch (err) {
       console.error('签到失败:', err);
       res.status(500).json({ ok: false, msg: '签到失败，请重试' });
@@ -56,9 +43,10 @@ module.exports = function (db) {
   // ========== 获取待签退车辆列表（已签到未签退） ==========
   router.get('/pending', (req, res) => {
     try {
-      const rows = queryAll(db,
-        'SELECT id, name, plate, phone, company, checkin_time FROM records WHERE checkout_time IS NULL ORDER BY checkin_time DESC'
-      );
+      const data = loadData();
+      const rows = data.records
+        .filter(r => !r.checkout_time)
+        .sort((a, b) => b.checkin_time.localeCompare(a.checkin_time));
       res.json({ ok: true, data: rows });
     } catch (err) {
       console.error('查询待签退失败:', err);
@@ -75,14 +63,14 @@ module.exports = function (db) {
     }
 
     try {
-      const record = queryOne(db, 'SELECT * FROM records WHERE id = ? AND checkout_time IS NULL', [id]);
+      const data = loadData();
+      const record = data.records.find(r => r.id === id && !r.checkout_time);
       if (!record) {
         return res.status(404).json({ ok: false, msg: '未找到该签到记录或已签退' });
       }
 
-      const now = getBeijingTime();
-      db.run('UPDATE records SET checkout_time = ? WHERE id = ?', [now, id]);
-      saveDB();
+      record.checkout_time = getBeijingTime();
+      saveData(data);
       res.json({ ok: true, msg: '签退成功' });
     } catch (err) {
       console.error('签退失败:', err);
@@ -103,9 +91,10 @@ module.exports = function (db) {
   // ========== 管理后台 - 当前在场车辆 ==========
   router.get('/admin/current', (req, res) => {
     try {
-      const rows = queryAll(db,
-        'SELECT id, name, plate, phone, company, checkin_time FROM records WHERE checkout_time IS NULL ORDER BY checkin_time DESC'
-      );
+      const data = loadData();
+      const rows = data.records
+        .filter(r => !r.checkout_time)
+        .sort((a, b) => b.checkin_time.localeCompare(a.checkin_time));
       res.json({ ok: true, data: rows });
     } catch (err) {
       console.error('查询在场车辆失败:', err);
@@ -116,31 +105,30 @@ module.exports = function (db) {
   // ========== 管理后台 - 历史记录（按日期筛选） ==========
   router.get('/admin/history', (req, res) => {
     const { date, page = 1, size = 50 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(size);
+    const pageNum = parseInt(page);
+    const pageSize = parseInt(size);
 
     try {
-      let where = '1=1';
-      const params = [];
+      const data = loadData();
+      let filtered = data.records;
 
       if (date) {
-        where += " AND DATE(checkin_time) = ?";
-        params.push(date);
+        filtered = filtered.filter(r => getBeijingDate(r.checkin_time) === date);
       }
 
-      const countRow = queryOne(db, `SELECT COUNT(*) as total FROM records WHERE ${where}`, params);
-      const total = countRow ? countRow.total : 0;
+      // 按签到时间倒序
+      filtered.sort((a, b) => b.checkin_time.localeCompare(a.checkin_time));
 
-      const rows = queryAll(db,
-        `SELECT * FROM records WHERE ${where} ORDER BY checkin_time DESC LIMIT ? OFFSET ?`,
-        [...params, parseInt(size), offset]
-      );
+      const total = filtered.length;
+      const offset = (pageNum - 1) * pageSize;
+      const rows = filtered.slice(offset, offset + pageSize);
 
       res.json({
         ok: true,
         data: rows,
-        total: total,
-        page: parseInt(page),
-        size: parseInt(size)
+        total,
+        page: pageNum,
+        size: pageSize
       });
     } catch (err) {
       console.error('查询历史记录失败:', err);
