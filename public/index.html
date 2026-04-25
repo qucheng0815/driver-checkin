@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>司机签到系统</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- 主入口页 -->
+  <div id="page-home" class="container">
+    <h1 class="page-title">🚛 司机签到系统</h1>
+    <div class="main-buttons">
+      <button class="btn-main btn-checkin" onclick="showPage('checkin')">📋 签 到</button>
+      <button class="btn-main btn-checkout" onclick="showPage('checkout')">🚪 签 退</button>
+    </div>
+  </div>
+
+  <!-- 签到页 -->
+  <div id="page-checkin" class="container" style="display:none">
+    <a href="javascript:void(0)" class="btn-back" onclick="showPage('home')">← 返回</a>
+    <h1 class="page-title">签到登记</h1>
+    <form id="checkinForm" onsubmit="return handleCheckin(event)">
+      <div class="form-group">
+        <label>姓名</label>
+        <input type="text" id="c_name" placeholder="请输入姓名" required>
+      </div>
+      <div class="form-group">
+        <label>车牌号</label>
+        <input type="text" id="c_plate" placeholder="如：京A12345" required>
+      </div>
+      <div class="form-group">
+        <label>手机号</label>
+        <input type="tel" id="c_phone" placeholder="请输入手机号" required pattern="[0-9]{11}">
+      </div>
+      <div class="form-group">
+        <label>运输公司</label>
+        <select id="c_company" required>
+          <option value="">请选择</option>
+          <option value="中通">中通</option>
+          <option value="月祥">月祥</option>
+          <option value="自有">自有</option>
+          <option value="货拉拉">货拉拉</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-submit" id="btnCheckin">确认签到</button>
+    </form>
+  </div>
+
+  <!-- 签退页 -->
+  <div id="page-checkout" class="container" style="display:none">
+    <a href="javascript:void(0)" class="btn-back" onclick="showPage('home')">← 返回</a>
+    <h1 class="page-title">签退确认</h1>
+    <p style="text-align:center;color:#888;margin-bottom:20px;">请选择您的车辆</p>
+    <ul class="checkout-list" id="checkoutList"></ul>
+    <button class="btn-submit" id="btnCheckout" style="display:none" onclick="handleCheckout()">确认签退</button>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/driver.js"></script>
+</body>
+</html>
